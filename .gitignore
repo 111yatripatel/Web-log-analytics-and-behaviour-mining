@@ -1,0 +1,19 @@
+# Virtual Environment
+.venv/
+__pycache__/
+*.pyc
+
+# Downloaded Installers
+installers/
+
+# Data files (keep skeleton directories)
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/benchmarks/*
+!data/benchmarks/.gitkeep
+
+# Docker volumes and local runtime state
+.docker/
+*.log

@@ -1,0 +1,9 @@
+FROM bde2020/hadoop-namenode:2.0.0-hadoop2.7.4-java8
+
+# Configure archive repositories for Debian Jessie and install Python 3
+RUN echo 'deb [check-valid-until=no] http://archive.debian.org/debian jessie main' > /etc/apt/sources.list && \
+    echo 'deb [check-valid-until=no] http://archive.debian.org/debian-security jessie/updates main' >> /etc/apt/sources.list && \
+    apt-get -o Acquire::Check-Valid-Until=false update && \
+    apt-get install -y --force-yes python3 && \
+    ln -sf /usr/bin/python3 /usr/bin/python && \
+    rm -rf /var/lib/apt/lists/*

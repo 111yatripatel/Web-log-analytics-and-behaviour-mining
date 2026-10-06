@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Distributed Web Log Analytics & User Behavior Mining</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="layout-wrapper">
+        <!-- Application Header -->
+        <header class="app-header">
+            <div class="brand-section">
+                <div class="brand-icon">⚡</div>
+                <div class="brand-title">
+                    <h1>Distributed Web Log Analytics & Behavior Mining</h1>
+                    <p>BTech Computer Science / Big Data Systems • Hadoop 2.7.4 • Hive • MapReduce • MongoDB • FastAPI</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <div class="cluster-pill">
+                    <span class="pulse-dot"></span>
+                    <span id="cluster-status-text">12/12 Cluster Containers Active</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="tabs-navigation">
+            <button class="tab-btn active" data-tab="tab-analytics">
+                <span>📊</span> Executive Analytics
+            </button>
+            <button class="tab-btn" data-tab="tab-pipeline">
+                <span>🔄</span> Pipeline Walkthrough
+            </button>
+            <button class="tab-btn" data-tab="tab-cluster">
+                <span>🖥️</span> Cluster Topology & Storage
+            </button>
+            <button class="tab-btn" data-tab="tab-viva">
+                <span>🎓</span> Evaluator Viva & Methods
+            </button>
+        </nav>
+
+        <!-- TAB 1: EXECUTIVE ANALYTICS -->
+        <main id="tab-analytics" class="tab-pane active">
+            <!-- KPI Summary Grid -->
+            <section class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-label">
+                        <span>Total Processed Logs</span>
+                        <span class="kpi-tag tag-cyan">HDFS</span>
+                    </div>
+                    <div class="kpi-value" id="kpi-requests">3,461,612</div>
+                    <div class="kpi-caption">NASA HTTP Logs (329.40 MB normalized TSV)</div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-label">
+                        <span>Mined User Sessions</span>
+                        <span class="kpi-tag tag-indigo">MapReduce</span>
+                    </div>
+                    <div class="kpi-value" id="kpi-sessions">306,523</div>
+                    <div class="kpi-caption">30-minute inactivity threshold on YARN</div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-label">
+                        <span>Overall Error Rate</span>
+                        <span class="kpi-tag tag-amber">Hive SQL</span>
+                    </div>
+                    <div class="kpi-value" id="kpi-error-rate">0.61%</div>
+                    <div class="kpi-caption">4xx Client & 5xx Server Errors</div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-label">
+                        <span>Transferred Volume</span>
+                        <span class="kpi-tag tag-emerald">Serving</span>
+                    </div>
+                    <div class="kpi-value" id="kpi-total-bytes">65.50 GB</div>
+                    <div class="kpi-caption">Avg response size: 18,921 bytes</div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-label">
+                        <span>HDFS Replication</span>
+                        <span class="kpi-tag tag-emerald">Factor = 2</span>
+                    </div>
+                    <div class="kpi-value">2 Nodes</div>
+                    <div class="kpi-caption">3 Blocks (128MB splits) replicated across 2 DataNodes</div>
+                </div>
+            </section>
+
+            <!-- Charts Grid -->
+            <section class="grid-cols-2">
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <span>📈</span> Diurnal Traffic Distribution
+                        </div>
+                        <div class="panel-subtitle">Hourly request volume across 24h cycle</div>
+                    </div>
+                    <div class="chart-box">
+                        <canvas id="trafficChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <span>⚠️</span> HTTP Error Distribution Over Time
+                        </div>
+                        <div class="panel-subtitle">Hourly client (4xx) & server (5xx) occurrences</div>
+                    </div>
+                    <div class="chart-box">
+                        <canvas id="errorChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tables Grid -->
+            <section class="grid-cols-2">
+                <!-- Top Pages -->
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <span>📄</span> Top 10 Requested URLs
+                        </div>
+                        <div class="panel-subtitle">Distributed Hive SQL Aggregation</div>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>URL Path</th>
+                                    <th>Total Requests</th>
+                                    <th>Share</th>
+                                    <th>Distribution</th>
+                                </tr>
+                            </thead>
+                            <tbody id="top-pages-body">
+                                <tr><td colspan="4">Loading top requested pages...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Mined Navigation Transitions -->
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <span>🔗</span> Mined URL Navigation Transitions
+                        </div>
+                        <div class="panel-subtitle">2-Stage MapReduce Graph Mining</div>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Source Page</th>
+                                    <th>Destination Page</th>
+                                    <th>Frequency</th>
+                                </tr>
+                            </thead>
+                            <tbody id="navigation-body">
+                                <tr><td colspan="3">Loading mined navigation paths...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Sessionization Samples Table -->
+            <section class="panel-card">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span>⏱️</span> Mined User Session Summaries
+                    </div>
+                    <div class="panel-subtitle">Custom Hadoop Streaming Reducer Output</div>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Client Host</th>
+                                <th>Session ID</th>
+                                <th>Start Timestamp</th>
+                                <th>End Timestamp</th>
+                                <th>Requests</th>
+                                <th>Duration</th>
+                                <th>Volume (Bytes)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sessions-body">
+                            <tr><td colspan="7">Loading MapReduce sessions...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <!-- TAB 2: PIPELINE WALKTHROUGH -->
+        <main id="tab-pipeline" class="tab-pane">
+            <div class="panel-card" style="margin-bottom: 24px;">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span>🔄</span> End-to-End Distributed Data Flow
+                    </div>
+                    <div class="panel-subtitle">Every stage verified, rerunnable, and executed on the cluster</div>
+                </div>
+                <div class="stepper-list" id="pipeline-stepper">
+                    <!-- Populated dynamically via /api/pipeline-stages -->
+                </div>
+            </div>
+        </main>
+
+        <!-- TAB 3: CLUSTER TOPOLOGY & STORAGE -->
+        <main id="tab-cluster" class="tab-pane">
+            <div class="panel-card" style="margin-bottom: 24px;">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span>🖥️</span> 12-Node Distributed Cluster Topology
+                    </div>
+                    <div class="panel-subtitle">Orchestrated via Docker Compose with dedicated bridge networking</div>
+                </div>
+                <div class="cluster-grid" id="cluster-nodes-grid">
+                    <!-- Populated dynamically via /api/cluster -->
+                </div>
+            </div>
+
+            <!-- HDFS Storage Breakdown -->
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span>💾</span> HDFS Block Allocation & Replication Detail
+                    </div>
+                    <div class="panel-subtitle">Verified via hdfs fsck over web_logs.tsv</div>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Block ID</th>
+                                <th>Block Size</th>
+                                <th>Replication</th>
+                                <th>Primary Storage (DataNode 1)</th>
+                                <th>Secondary Replica (DataNode 2)</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>blk_1073741825_1001</code></td>
+                                <td>134.22 MB (128 MB)</td>
+                                <td><span class="kpi-tag tag-emerald">2</span></td>
+                                <td><code>172.18.0.9 (datanode1)</code></td>
+                                <td><code>172.18.0.2 (datanode2)</code></td>
+                                <td><span class="kpi-tag tag-emerald">HEALTHY</span></td>
+                            </tr>
+                            <tr>
+                                <td><code>blk_1073741826_1002</code></td>
+                                <td>134.22 MB (128 MB)</td>
+                                <td><span class="kpi-tag tag-emerald">2</span></td>
+                                <td><code>172.18.0.9 (datanode1)</code></td>
+                                <td><code>172.18.0.2 (datanode2)</code></td>
+                                <td><span class="kpi-tag tag-emerald">HEALTHY</span></td>
+                            </tr>
+                            <tr>
+                                <td><code>blk_1073741827_1003</code></td>
+                                <td>76.97 MB</td>
+                                <td><span class="kpi-tag tag-emerald">2</span></td>
+                                <td><code>172.18.0.9 (datanode1)</code></td>
+                                <td><code>172.18.0.2 (datanode2)</code></td>
+                                <td><span class="kpi-tag tag-emerald">HEALTHY</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+
+        <!-- TAB 4: EVALUATOR PRESENTATION & VIVA DEFENSE -->
+        <main id="tab-viva" class="tab-pane">
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span>🎓</span> Big Data Systems Viva Defense Cheatsheet
+                    </div>
+                    <div class="panel-subtitle">Architectural justifications and oral exam answers</div>
+                </div>
+                <div class="viva-grid">
+                    <div class="viva-card">
+                        <div class="viva-q">1. Why use HDFS with replication instead of storing files on local disk?</div>
+                        <div class="viva-a">
+                            HDFS splits large datasets into 128 MB blocks distributed across multiple DataNodes. Replication factor 2 guarantees that if DataNode 2 experiences hardware failure, DataNode 1 immediately serves the requested blocks without downtime or data loss. Local disks lack horizontal scaling and single-point-of-failure recovery.
+                        </div>
+                    </div>
+
+                    <div class="viva-card">
+                        <div class="viva-q">2. What happens inside Mapper, Shuffle/Sort, and Reducer in our Sessionization job?</div>
+                        <div class="viva-a">
+                            • <strong>Mapper (session_mapper.py)</strong>: Parses raw logs and emits <code>(host, epoch, timestamp, url, bytes)</code>.<br/>
+                            • <strong>Shuffle & Sort</strong>: Hadoop automatically hashes the key (<code>host</code>), routes identical hosts to the same reducer, and groups their requests.<br/>
+                            • <strong>Reducer (session_reducer.py)</strong>: Chronologically sorts each host's hits, detects gaps &gt; 30 minutes to demarcate new sessions, and outputs session summaries.
+                        </div>
+                    </div>
+
+                    <div class="viva-card">
+                        <div class="viva-q">3. Why is URL Navigation Mining split into two MapReduce stages?</div>
+                        <div class="viva-a">
+                            • <strong>Stage 1</strong> must group records by <em>host</em> to extract consecutive page transitions within active sessions.<br/>
+                            • <strong>Stage 2</strong> must group records by <em>transition pair (source_url -&gt; dest_url)</em> to sum global frequencies across all users.<br/>
+                            Because the partitioning key changes from <code>host</code> to <code>(source, dest)</code>, a 2-stage MapReduce pipeline is the classic Big Data paradigm.
+                        </div>
+                    </div>
+
+                    <div class="viva-card">
+                        <div class="viva-q">4. Why is MongoDB used as the serving layer rather than querying Hive directly from FastAPI?</div>
+                        <div class="viva-a">
+                            Hadoop and Hive are optimized for high-throughput batch processing over terabytes (query response time ~15–40 seconds). Web dashboards require interactive response times (&lt;10 milliseconds). Pre-aggregating results into MongoDB document collections with B-Tree indexes decouples analytical computation from low-latency serving.
+                        </div>
+                    </div>
+
+                    <div class="viva-card">
+                        <div class="viva-q">5. Why is this not a simple Pandas analytics script?</div>
+                        <div class="viva-a">
+                            Pandas loads datasets entirely into a single machine's RAM and fails when data exceeds available memory. Our pipeline distributes storage across HDFS DataNodes, executes jobs via YARN across multiple worker containers, streams data line-by-line in constant O(1) memory, and uses MapReduce shuffle partitioning.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            Distributed Web Log Analytics Pipeline • University BTech Big Data Systems Project • Hadoop 2.7.4 / Hive 2.3.2 / MongoDB 6.0 / FastAPI
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

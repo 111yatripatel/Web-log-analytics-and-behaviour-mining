@@ -1,0 +1,195 @@
+services:
+  namenode:
+    image: bds-hadoop-namenode:2.7.4
+    container_name: namenode
+    restart: always
+    environment:
+      - CLUSTER_NAME=log-analytics-cluster
+      - MULTIHOMED_NETWORK=1
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "50070:50070"
+      - "8020:8020"
+    volumes:
+      - hadoop_namenode:/hadoop/dfs/name
+      - ../data:/data
+      - ../mapreduce:/mapreduce
+    networks:
+      - hadoop_network
+
+  datanode1:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop2.7.4-java8
+    container_name: datanode1
+    restart: always
+    environment:
+      - SERVICE_PRECONDITION=namenode:50070
+      - MULTIHOMED_NETWORK=1
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "50075:50075"
+    volumes:
+      - hadoop_datanode1:/hadoop/dfs/data
+    networks:
+      - hadoop_network
+
+  datanode2:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop2.7.4-java8
+    container_name: datanode2
+    restart: always
+    environment:
+      - SERVICE_PRECONDITION=namenode:50070
+      - MULTIHOMED_NETWORK=1
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "50076:50075"
+    volumes:
+      - hadoop_datanode2:/hadoop/dfs/data
+    networks:
+      - hadoop_network
+
+  resourcemanager:
+    image: bde2020/hadoop-resourcemanager:2.0.0-hadoop2.7.4-java8
+    container_name: resourcemanager
+    restart: always
+    environment:
+      - SERVICE_PRECONDITION=namenode:50070 datanode1:50075 datanode2:50075
+      - MULTIHOMED_NETWORK=1
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "8088:8088"
+    networks:
+      - hadoop_network
+
+  nodemanager1:
+    image: bds-hadoop-nodemanager:2.7.4
+    container_name: nodemanager1
+    restart: always
+    environment:
+      - SERVICE_PRECONDITION=namenode:50070 datanode1:50075 resourcemanager:8088
+      - MULTIHOMED_NETWORK=1
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "8042:8042"
+    volumes:
+      - ../mapreduce:/mapreduce
+    networks:
+      - hadoop_network
+
+  nodemanager2:
+    image: bds-hadoop-nodemanager:2.7.4
+    container_name: nodemanager2
+    restart: always
+    environment:
+      - SERVICE_PRECONDITION=namenode:50070 datanode2:50075 resourcemanager:8088
+      - MULTIHOMED_NETWORK=1
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "8043:8042"
+    volumes:
+      - ../mapreduce:/mapreduce
+    networks:
+      - hadoop_network
+
+  historyserver:
+    image: bde2020/hadoop-historyserver:2.0.0-hadoop2.7.4-java8
+    container_name: historyserver
+    restart: always
+    environment:
+      - SERVICE_PRECONDITION=namenode:50070 resourcemanager:8088
+      - MULTIHOMED_NETWORK=1
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "19888:19888"
+    volumes:
+      - hadoop_historyserver:/hadoop/yarn/timeline
+    networks:
+      - hadoop_network
+
+  postgres:
+    image: bde2020/hive-metastore-postgresql:2.3.0
+    container_name: postgres
+    restart: always
+    environment:
+      - POSTGRES_DB=metastore
+      - POSTGRES_USER=hive
+      - POSTGRES_PASSWORD=hive
+    volumes:
+      - metastore_db:/var/lib/postgresql/data
+    networks:
+      - hadoop_network
+
+  hive-metastore:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive-metastore
+    restart: always
+    command: /opt/hive/bin/hive --service metastore
+    environment:
+      - SERVICE_PRECONDITION=namenode:50070 datanode1:50075 resourcemanager:8088 postgres:5432
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "9083:9083"
+    networks:
+      - hadoop_network
+
+  hive-server:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive-server
+    restart: always
+    environment:
+      - SERVICE_PRECONDITION=hive-metastore:9083
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "10000:10000"
+      - "10002:10002"
+    volumes:
+      - ../hive:/hive_scripts
+    networks:
+      - hadoop_network
+
+  mongodb:
+    image: mongo:6.0
+    container_name: mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - hadoop_network
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: backend
+    restart: always
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017
+      - DATABASE_NAME=web_log_analytics
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mongodb
+    networks:
+      - hadoop_network
+
+volumes:
+  hadoop_namenode:
+  hadoop_datanode1:
+  hadoop_datanode2:
+  hadoop_historyserver:
+  metastore_db:
+  mongo_data:
+
+networks:
+  hadoop_network:
+    driver: bridge
