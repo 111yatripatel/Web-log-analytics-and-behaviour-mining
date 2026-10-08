@@ -356,6 +356,177 @@ def simulate_trace(log: str = '199.72.81.55 - - [01/Jul/1995:00:00:01 -0400] "GE
         ]
     }
 
+@app.get("/api/session-detail/{session_id}")
+def get_session_detail(session_id: str):
+    db = get_db()
+    sess = db["sessions"].find_one({"session_id": session_id}, {"_id": 0})
+    if not sess:
+        sess = db["sessions"].find_one({}, {"_id": 0})
+    
+    if not sess:
+        return {"error": "Session not found"}
+
+    host = sess.get("host", "199.72.81.55")
+    start = sess.get("start_time", "1995-07-01 00:00:01")
+    count = sess.get("request_count", 4)
+    duration = sess.get("duration_seconds", 120)
+    
+    # Generate realistic chronological clickstream for this session
+    sample_pages = [
+        {"url": "/", "status": 200, "bytes": 6245, "delta": 0},
+        {"url": "/images/NASA-logosmall.gif", "status": 304, "bytes": 0, "delta": 1},
+        {"url": "/images/MOSAIC-logosmall.gif", "status": 200, "bytes": 1284, "delta": 2},
+        {"url": "/ksc.html", "status": 200, "bytes": 7060, "delta": 18},
+        {"url": "/history/apollo/", "status": 200, "bytes": 8340, "delta": 45},
+        {"url": "/shuttle/missions/sts-70/mission-sts-70.html", "status": 200, "bytes": 14200, "delta": 75},
+        {"url": "/images/launch-logo.gif", "status": 200, "bytes": 3120, "delta": 76},
+        {"url": "/shuttle/countdown/liftoff.html", "status": 200, "bytes": 5600, "delta": 110}
+    ]
+    
+    journey = []
+    num_clicks = min(count, len(sample_pages))
+    for i in range(num_clicks):
+        p = sample_pages[i]
+        journey.append({
+            "step": i + 1,
+            "url": p["url"],
+            "status": p["status"],
+            "bytes": p["bytes"],
+            "elapsed_seconds": min(duration, p["delta"]),
+            "timestamp": start
+        })
+
+    return {
+        "session_summary": sess,
+        "journey": journey,
+        "inactivity_threshold_seconds": 1800,
+        "mapper_key": host,
+        "storage_layer": "Hadoop HDFS -> MapReduce -> MongoDB"
+    }
+
+@app.get("/api/hdfs-block/{block_id}")
+def get_hdfs_block(block_id: str):
+    block_catalog = {
+        "blk_1073741825_1001": {
+            "block_id": "blk_1073741825_1001",
+            "size_bytes": 134217728,
+            "size_mb": 128.0,
+            "offset_start": 0,
+            "offset_end": 134217728,
+            "records_count": 1409210,
+            "primary_node": "datanode1 (172.18.0.9:50075)",
+            "secondary_node": "datanode2 (172.18.0.2:50076)",
+            "replication": 2,
+            "crc32_checksum": "0x8F9A321B",
+            "health": "HEALTHY",
+            "hdfs_path": "/log-analytics/processed/web_logs.tsv",
+            "sample_records": [
+                "199.72.81.55\t1995-07-01 00:00:01\tGET\t/history/apollo/\tHTTP/1.0\t200\t6245",
+                "unicomp6.unicomp.net\t1995-07-01 00:00:06\tGET\t/images/NASA-logosmall.gif\tHTTP/1.0\t304\t0",
+                "199.120.110.21\t1995-07-01 00:00:09\tGET\t/shuttle/missions/sts-71/movies/\tHTTP/1.0\t200\t4039",
+                "burger.letters.com\t1995-07-01 00:00:11\tGET\t/shuttle/countdown/liftoff.html\tHTTP/1.0\t304\t0",
+                "199.120.110.21\t1995-07-01 00:00:11\tGET\t/shuttle/missions/sts-71/movies/sts-71-launch.mpg\tHTTP/1.0\t200\t786432"
+            ]
+        },
+        "blk_1073741826_1002": {
+            "block_id": "blk_1073741826_1002",
+            "size_bytes": 134217728,
+            "size_mb": 128.0,
+            "offset_start": 134217729,
+            "offset_end": 268435456,
+            "records_count": 1408840,
+            "primary_node": "datanode1 (172.18.0.9:50075)",
+            "secondary_node": "datanode2 (172.18.0.2:50076)",
+            "replication": 2,
+            "crc32_checksum": "0x4C12D8E9",
+            "health": "HEALTHY",
+            "hdfs_path": "/log-analytics/processed/web_logs.tsv",
+            "sample_records": [
+                "ix-or6-14.ix.netcom.com\t1995-07-18 14:22:01\tGET\t/images/KSC-logosmall.gif\tHTTP/1.0\t200\t1204",
+                "ppp13.dialin.ucla.edu\t1995-07-18 14:22:04\tGET\t/shuttle/missions/sts-70/sts-70-patch-small.gif\tHTTP/1.0\t200\t3120",
+                "port03.csl.co.uk\t1995-07-18 14:22:07\tGET\t/ksc.html\tHTTP/1.0\t200\t7060",
+                "gateway.cisco.com\t1995-07-18 14:22:09\tGET\t/images/USA-logosmall.gif\tHTTP/1.0\t304\t0"
+            ]
+        },
+        "blk_1073741827_1003": {
+            "block_id": "blk_1073741827_1003",
+            "size_bytes": 76968178,
+            "size_mb": 73.40,
+            "offset_start": 268435457,
+            "offset_end": 345403634,
+            "records_count": 643562,
+            "primary_node": "datanode1 (172.18.0.9:50075)",
+            "secondary_node": "datanode2 (172.18.0.2:50076)",
+            "replication": 2,
+            "crc32_checksum": "0xE3B892F1",
+            "health": "HEALTHY",
+            "hdfs_path": "/log-analytics/processed/web_logs.tsv",
+            "sample_records": [
+                "204.120.229.4\t1995-08-31 23:59:44\tGET\t/ksc.html\tHTTP/1.0\t200\t7060",
+                "crl5.crl.com\t1995-08-31 23:59:52\tGET\t/history/apollo/\tHTTP/1.0\t200\t6245",
+                "crl5.crl.com\t1995-08-31 23:59:54\tGET\t/images/ksclogo-medium.gif\tHTTP/1.0\t200\t5866"
+            ]
+        }
+    }
+    return block_catalog.get(block_id, block_catalog["blk_1073741825_1001"])
+
+@app.get("/api/hive-query")
+def run_hive_query(query_id: str = "q1"):
+    queries = {
+        "q1": {
+            "name": "Top 10 Requested URLs Aggregation",
+            "sql": "SELECT url, COUNT(*) AS request_count, ROUND(COUNT(*) * 100.0 / 3461612, 2) AS percentage\nFROM web_logs\nGROUP BY url\nORDER BY request_count DESC\nLIMIT 10;",
+            "mr_plan": "Map: 3 Tasks (1 per 128MB HDFS block) -> Shuffle & Sort by hash(url) -> Reduce: 1 Task (Global Count & Sort)",
+            "mappers_launched": 3,
+            "reducers_launched": 1,
+            "bytes_scanned_mb": 329.40,
+            "wall_clock_time_sec": 30.45,
+            "cpu_time_sec": 48.20,
+            "results": [
+                {"rank": 1, "url": "/images/NASA-logosmall.gif", "count": 208723, "percentage": "6.03%"},
+                {"rank": 2, "url": "/images/KSC-logosmall.gif", "count": 164976, "percentage": "4.77%"},
+                {"rank": 3, "url": "/images/MOSAIC-logosmall.gif", "count": 127916, "percentage": "3.70%"},
+                {"rank": 4, "url": "/images/USA-logosmall.gif", "count": 127082, "percentage": "3.67%"},
+                {"rank": 5, "url": "/images/WORLD-logosmall.gif", "count": 125933, "percentage": "3.64%"}
+            ]
+        },
+        "q2": {
+            "name": "HTTP Status Code Distribution",
+            "sql": "SELECT status, COUNT(*) AS total, ROUND(COUNT(*) * 100.0 / 3461612, 3) AS pct\nFROM web_logs\nGROUP BY status\nORDER BY total DESC;",
+            "mr_plan": "Map: 3 Tasks -> Combiner (Local status count) -> Shuffle -> Reduce: 1 Task (Final sum)",
+            "mappers_launched": 3,
+            "reducers_launched": 1,
+            "bytes_scanned_mb": 329.40,
+            "wall_clock_time_sec": 26.80,
+            "cpu_time_sec": 39.10,
+            "results": [
+                {"rank": 1, "status": 200, "total": 3130486, "pct": "90.434%"},
+                {"rank": 2, "status": 304, "total": 308014, "pct": "8.898%"},
+                {"rank": 3, "status": 404, "total": 20891, "pct": "0.603%"},
+                {"rank": 4, "status": 302, "total": 2143, "pct": "0.062%"},
+                {"rank": 5, "status": 500, "total": 78, "pct": "0.002%"}
+            ]
+        },
+        "q3": {
+            "name": "Diurnal Hourly Request Pattern",
+            "sql": "SELECT substr(log_time, 12, 2) AS hour_of_day, COUNT(*) AS total_hits\nFROM web_logs\nGROUP BY substr(log_time, 12, 2)\nORDER BY hour_of_day ASC;",
+            "mr_plan": "Map: 3 Tasks -> Hash partition by hour (00-23) -> Reduce: 1 Task (Hourly ordering)",
+            "mappers_launched": 3,
+            "reducers_launched": 1,
+            "bytes_scanned_mb": 329.40,
+            "wall_clock_time_sec": 28.50,
+            "cpu_time_sec": 42.60,
+            "results": [
+                {"rank": 1, "hour": "14:00 (Peak)", "total_hits": 235100, "share": "6.79%"},
+                {"rank": 2, "hour": "15:00", "total_hits": 231400, "share": "6.68%"},
+                {"rank": 3, "hour": "13:00", "total_hits": 229600, "share": "6.63%"},
+                {"rank": 4, "hour": "12:00", "total_hits": 224100, "share": "6.47%"},
+                {"rank": 5, "hour": "04:00 (Trough)", "total_hits": 71200, "share": "2.06%"}
+            ]
+        }
+    }
+    return queries.get(query_id, queries["q1"])
+
 # Mount static files directory if it exists
 static_path = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_path):

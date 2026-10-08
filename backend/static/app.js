@@ -4,6 +4,8 @@ document.addEventListener("DOMContentLoaded", () => {
     initSimulator();
     loadBenchmarks();
     loadClusterTopology();
+    initHiveSandbox();
+    initModals();
 });
 
 // Global state cache
@@ -18,7 +20,10 @@ const state = {
     sessionMinHits: 0,
     currentSimStage: 1,
     simData: null,
-    isSimulating: false
+    isSimulating: false,
+    clusterNodes: [],
+    charts: {},
+    graphHoverNode: null
 };
 
 // ============================================================================
@@ -79,12 +84,13 @@ async function loadDashboardMetrics() {
         console.error("Error loading top pages:", e);
     }
 
-    // 3. Navigation Transitions
+    // 3. Navigation Transitions & Interactive Graph
     try {
         const res = await fetch("/api/navigation?limit=25");
         state.navigation = await res.json();
         renderNavigation();
         setupNavigationListeners();
+        initNavigationGraph();
     } catch (e) {
         console.error("Error loading navigation patterns:", e);
     }
@@ -109,11 +115,9 @@ function renderTopPages() {
     if (!tbody || !Array.isArray(state.topPages)) return;
 
     let filtered = state.topPages.filter(p => {
-        // Search filter
         if (state.pageSearch && !p.url.toLowerCase().includes(state.pageSearch.toLowerCase())) {
             return false;
         }
-        // Type filter
         if (state.pageFilter === "image") {
             return p.url.endsWith(".gif") || p.url.endsWith(".jpg") || p.url.endsWith(".xbm");
         }
@@ -206,6 +210,138 @@ function setupNavigationListeners() {
     }
 }
 
+// Interactive Navigation Graph Canvas Visualizer
+function initNavigationGraph() {
+    const canvas = document.getElementById("navGraphCanvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+
+    const nodes = [
+        { id: "root", label: "/", x: 120, y: 170, type: "root", count: "63.2k hits" },
+        { id: "ksc", label: "/ksc.html", x: 340, y: 80, type: "page", count: "83.9k hits" },
+        { id: "apollo", label: "/history/apollo/", x: 360, y: 260, type: "page", count: "68.8k hits" },
+        { id: "shuttle", label: "/shuttle/missions/", x: 600, y: 90, type: "page", count: "47.3k hits" },
+        { id: "countdown", label: "/shuttle/countdown/", x: 620, y: 250, type: "script", count: "64.7k hits" },
+        { id: "logo", label: "/images/NASA-logosmall.gif", x: 880, y: 80, type: "asset", count: "208.7k hits" },
+        { id: "ksc_logo", label: "/images/KSC-logosmall.gif", x: 890, y: 200, type: "asset", count: "164.9k hits" },
+        { id: "cdt", label: "/htbin/cdt_main.pl", x: 920, y: 290, type: "script", count: "39.8k hits" }
+    ];
+
+    const edges = [
+        { from: "root", to: "ksc", label: "34.2k", weight: 3 },
+        { from: "root", to: "apollo", label: "22.5k", weight: 2.5 },
+        { from: "ksc", to: "shuttle", label: "28.1k", weight: 3 },
+        { from: "ksc", to: "logo", label: "41.6k", weight: 4 },
+        { from: "apollo", to: "logo", label: "31.2k", weight: 3 },
+        { from: "apollo", to: "countdown", label: "18.4k", weight: 2 },
+        { from: "shuttle", to: "ksc_logo", label: "24.9k", weight: 2.5 },
+        { from: "countdown", to: "cdt", label: "29.8k", weight: 3 },
+        { from: "shuttle", to: "logo", label: "38.2k", weight: 3.5 }
+    ];
+
+    function drawGraph() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw edges
+        edges.forEach(e => {
+            const nFrom = nodes.find(n => n.id === e.from);
+            const nTo = nodes.find(n => n.id === e.to);
+            if (!nFrom || !nTo) return;
+
+            const isHovered = state.graphHoverNode && (state.graphHoverNode.id === e.from || state.graphHoverNode.id === e.to);
+
+            ctx.beginPath();
+            ctx.moveTo(nFrom.x, nFrom.y);
+            
+            // Curved bezier
+            const cx = (nFrom.x + nTo.x) / 2;
+            const cy = (nFrom.y + nTo.y) / 2 - 15;
+            ctx.quadraticCurveTo(cx, cy, nTo.x, nTo.y);
+
+            ctx.strokeStyle = isHovered ? "#38bdf8" : "rgba(56, 189, 248, 0.25)";
+            ctx.lineWidth = isHovered ? e.weight + 2 : e.weight;
+            ctx.stroke();
+
+            // Draw edge weight badge
+            ctx.fillStyle = isHovered ? "#ffffff" : "#94a3b8";
+            ctx.font = "10px JetBrains Mono";
+            ctx.fillText(e.label, cx - 12, cy - 2);
+        });
+
+        // Draw nodes
+        nodes.forEach(n => {
+            const isHovered = state.graphHoverNode && state.graphHoverNode.id === n.id;
+            const radius = isHovered ? 26 : 22;
+
+            // Glow
+            if (isHovered) {
+                ctx.beginPath();
+                ctx.arc(n.x, n.y, radius + 8, 0, Math.PI * 2);
+                ctx.fillStyle = "rgba(56, 189, 248, 0.3)";
+                ctx.fill();
+            }
+
+            // Node Circle
+            ctx.beginPath();
+            ctx.arc(n.x, n.y, radius, 0, Math.PI * 2);
+            if (n.type === "root") ctx.fillStyle = "#38bdf8";
+            else if (n.type === "page") ctx.fillStyle = "#10b981";
+            else if (n.type === "asset") ctx.fillStyle = "#818cf8";
+            else ctx.fillStyle = "#f59e0b";
+            ctx.fill();
+
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Label
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 11px Inter";
+            ctx.textAlign = "center";
+            ctx.fillText(n.label, n.x, n.y + radius + 14);
+
+            ctx.fillStyle = "#94a3b8";
+            ctx.font = "9px JetBrains Mono";
+            ctx.fillText(n.count, n.x, n.y + radius + 25);
+        });
+    }
+
+    drawGraph();
+
+    // Hover handler
+    canvas.addEventListener("mousemove", (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const mouseX = (e.clientX - rect.left) * scaleX;
+        const mouseY = (e.clientY - rect.top) * scaleY;
+
+        const found = nodes.find(n => {
+            const dx = n.x - mouseX;
+            const dy = n.y - mouseY;
+            return Math.sqrt(dx * dx + dy * dy) < 26;
+        });
+
+        if (found !== state.graphHoverNode) {
+            state.graphHoverNode = found || null;
+            canvas.style.cursor = found ? "pointer" : "default";
+            drawGraph();
+        }
+    });
+
+    // Click handler -> filters table below
+    canvas.addEventListener("click", () => {
+        if (state.graphHoverNode) {
+            const navInput = document.getElementById("filter-navigation");
+            if (navInput) {
+                navInput.value = state.graphHoverNode.label;
+                state.navSearch = state.graphHoverNode.label;
+                renderNavigation();
+            }
+        }
+    });
+}
+
 // Render Sessions Table
 function renderSessions() {
     const tbody = document.getElementById("sessions-body");
@@ -227,14 +363,14 @@ function renderSessions() {
     }
 
     if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="loading-cell">No matching user sessions found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="loading-cell">No matching user sessions found.</td></tr>`;
         return;
     }
 
     tbody.innerHTML = filtered.slice(0, 20).map(s => {
         const kb = (s.total_bytes / 1024).toFixed(1);
         return `
-            <tr>
+            <tr data-sid="${s.session_id}">
                 <td><code style="color: var(--accent-cyan);">${s.host}</code></td>
                 <td><span class="kpi-tag tag-indigo">${s.session_id}</span></td>
                 <td>${s.start_time}</td>
@@ -242,9 +378,18 @@ function renderSessions() {
                 <td><strong>${s.request_count}</strong> hits</td>
                 <td>${s.duration_seconds}s</td>
                 <td>${kb} KB</td>
+                <td><button class="btn-inspect-session" data-sid="${s.session_id}">Inspect Journey ➔</button></td>
             </tr>
         `;
     }).join("");
+
+    // Setup session click handlers
+    tbody.querySelectorAll("tr").forEach(row => {
+        row.addEventListener("click", (e) => {
+            const sid = row.getAttribute("data-sid");
+            if (sid) inspectSession(sid);
+        });
+    });
 }
 
 function setupSessionListeners() {
@@ -265,7 +410,7 @@ function setupSessionListeners() {
     }
 }
 
-// Render All Charts
+// Render All Charts with destroy safety
 async function renderCharts() {
     try {
         const [trafficRes, errorRes, statusRes, durationRes] = await Promise.all([
@@ -283,7 +428,8 @@ async function renderCharts() {
         // 1. Traffic Chart (Line)
         const ctxTraffic = document.getElementById("trafficChart")?.getContext("2d");
         if (ctxTraffic) {
-            new Chart(ctxTraffic, {
+            state.charts.traffic?.destroy();
+            state.charts.traffic = new Chart(ctxTraffic, {
                 type: "line",
                 data: {
                     labels: trafficData.map(d => `${d.hour}:00`),
@@ -321,7 +467,8 @@ async function renderCharts() {
         // 2. Error Chart (Bar)
         const ctxError = document.getElementById("errorChart")?.getContext("2d");
         if (ctxError) {
-            new Chart(ctxError, {
+            state.charts.error?.destroy();
+            state.charts.error = new Chart(ctxError, {
                 type: "bar",
                 data: {
                     labels: errorData.map(d => `${d.hour}:00`),
@@ -355,7 +502,8 @@ async function renderCharts() {
         // 3. Status Codes Chart (Doughnut)
         const ctxStatus = document.getElementById("statusChart")?.getContext("2d");
         if (ctxStatus) {
-            new Chart(ctxStatus, {
+            state.charts.status?.destroy();
+            state.charts.status = new Chart(ctxStatus, {
                 type: "doughnut",
                 data: {
                     labels: statusData.map(d => d.status),
@@ -395,7 +543,8 @@ async function renderCharts() {
         // 4. Session Duration Distribution (Bar)
         const ctxDuration = document.getElementById("durationChart")?.getContext("2d");
         if (ctxDuration) {
-            new Chart(ctxDuration, {
+            state.charts.duration?.destroy();
+            state.charts.duration = new Chart(ctxDuration, {
                 type: "bar",
                 data: {
                     labels: durationData.map(d => d.bucket),
@@ -537,7 +686,6 @@ async function runSimulation() {
 function selectSimStage(stNumber) {
     state.currentSimStage = stNumber;
 
-    // Highlight flow stage node
     const stageNodes = document.querySelectorAll(".flow-stage-node");
     stageNodes.forEach(n => {
         const nSt = parseInt(n.getAttribute("data-stage"));
@@ -548,7 +696,6 @@ function selectSimStage(stNumber) {
         }
     });
 
-    // Update buttons state
     const prevBtn = document.getElementById("btn-prev-stage");
     const nextBtn = document.getElementById("btn-next-stage");
     if (prevBtn) prevBtn.disabled = (stNumber === 1);
@@ -581,7 +728,7 @@ function renderStageInspector(stNumber) {
 }
 
 // ============================================================================
-// TAB 3: ARCHITECTURE & SCALABILITY BENCHMARKS
+// TAB 3: ARCHITECTURE, QUERY SANDBOX & BENCHMARKS
 // ============================================================================
 async function loadBenchmarks() {
     try {
@@ -610,18 +757,62 @@ async function loadBenchmarks() {
     }
 }
 
+function initHiveSandbox() {
+    const qBtns = document.querySelectorAll(".query-tab-btn");
+    qBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            qBtns.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            const qid = btn.getAttribute("data-qid");
+            loadHiveQuery(qid);
+        });
+    });
+
+    loadHiveQuery("q1");
+}
+
+async function loadHiveQuery(qid) {
+    try {
+        const res = await fetch(`/api/hive-query?query_id=${qid}`);
+        const data = await res.json();
+
+        document.getElementById("hive-sql-display").textContent = data.sql;
+        document.getElementById("hive-mr-plan").textContent = data.mr_plan;
+        document.getElementById("hive-mappers").textContent = data.mappers_launched;
+        document.getElementById("hive-reducers").textContent = data.reducers_launched;
+        document.getElementById("hive-scanned").textContent = `${data.bytes_scanned_mb} MB`;
+        document.getElementById("hive-wallclock").textContent = `${data.wall_clock_time_sec}s (CPU: ${data.cpu_time_sec}s)`;
+
+        const thead = document.getElementById("hive-results-head");
+        const tbody = document.getElementById("hive-results-body");
+
+        if (data.results && data.results.length > 0) {
+            const keys = Object.keys(data.results[0]);
+            thead.innerHTML = keys.map(k => `<th>${k.toUpperCase()}</th>`).join("");
+            tbody.innerHTML = data.results.map(row => `
+                <tr>
+                    ${keys.map(k => `<td>${row[k]}</td>`).join("")}
+                </tr>
+            `).join("");
+        }
+    } catch (e) {
+        console.error("Error loading Hive query:", e);
+    }
+}
+
 // ============================================================================
-// TAB 4: 12-NODE CLUSTER TOPOLOGY
+// TAB 4: 12-NODE CLUSTER TOPOLOGY & HDFS BLOCK MATRIX
 // ============================================================================
 async function loadClusterTopology() {
     try {
         const res = await fetch("/api/cluster");
         const data = await res.json();
+        state.clusterNodes = data.nodes || [];
         const grid = document.getElementById("cluster-nodes-grid");
 
         if (data.nodes && grid) {
             grid.innerHTML = data.nodes.map(n => `
-                <div class="node-card">
+                <div class="node-card" data-node="${n.name}">
                     <div class="node-header">
                         <span class="node-name">${n.name}</span>
                         <span class="kpi-tag tag-emerald">${n.status}</span>
@@ -634,8 +825,131 @@ async function loadClusterTopology() {
                     </div>
                 </div>
             `).join("");
+
+            grid.querySelectorAll(".node-card").forEach(card => {
+                card.addEventListener("click", () => {
+                    const nodeName = card.getAttribute("data-node");
+                    inspectNode(nodeName);
+                });
+            });
         }
     } catch (e) {
         console.error("Error loading cluster topology:", e);
     }
+
+    // Setup HDFS block click handlers
+    document.querySelectorAll(".clickable-block").forEach(card => {
+        card.addEventListener("click", () => {
+            const bid = card.getAttribute("data-bid");
+            inspectBlock(bid);
+        });
+    });
+}
+
+// ============================================================================
+// MODALS LOGIC
+// ============================================================================
+function initModals() {
+    // Session modal close
+    document.getElementById("btn-close-session-modal")?.addEventListener("click", () => {
+        document.getElementById("session-modal").style.display = "none";
+    });
+
+    // Block modal close
+    document.getElementById("btn-close-block-modal")?.addEventListener("click", () => {
+        document.getElementById("block-modal").style.display = "none";
+    });
+
+    // Node modal close
+    document.getElementById("btn-close-node-modal")?.addEventListener("click", () => {
+        document.getElementById("node-modal").style.display = "none";
+    });
+
+    // Dismiss on background click
+    document.querySelectorAll(".modal-backdrop").forEach(backdrop => {
+        backdrop.addEventListener("click", (e) => {
+            if (e.target === backdrop) backdrop.style.display = "none";
+        });
+    });
+
+    // Escape key
+    window.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+            document.querySelectorAll(".modal-backdrop").forEach(b => b.style.display = "none");
+        }
+    });
+}
+
+async function inspectSession(sessionId) {
+    try {
+        const res = await fetch(`/api/session-detail/${sessionId}`);
+        const data = await res.json();
+
+        document.getElementById("modal-session-title").textContent = `Session ID: ${data.session_summary.session_id}`;
+        document.getElementById("modal-session-host").textContent = `Client Host: ${data.session_summary.host}`;
+        document.getElementById("modal-sess-start").textContent = data.session_summary.start_time;
+        document.getElementById("modal-sess-end").textContent = data.session_summary.end_time;
+        document.getElementById("modal-sess-requests").textContent = `${data.session_summary.request_count} hits`;
+        document.getElementById("modal-sess-duration").textContent = `${data.session_summary.duration_seconds}s`;
+        document.getElementById("modal-sess-bytes").textContent = `${(data.session_summary.total_bytes / 1024).toFixed(1)} KB`;
+
+        const timelineContainer = document.getElementById("modal-session-timeline");
+        if (timelineContainer && data.journey) {
+            timelineContainer.innerHTML = data.journey.map(step => `
+                <div class="timeline-item">
+                    <span class="timeline-step">#${step.step}</span>
+                    <span class="timeline-url" title="${step.url}">${step.url}</span>
+                    <span class="kpi-tag tag-${step.status === 200 ? 'emerald' : 'cyan'}">${step.status}</span>
+                    <span class="timeline-time">+${step.elapsed_seconds}s</span>
+                </div>
+            `).join("");
+        }
+
+        document.getElementById("session-modal").style.display = "flex";
+    } catch (e) {
+        console.error("Error inspecting session:", e);
+    }
+}
+
+async function inspectBlock(blockId) {
+    try {
+        const res = await fetch(`/api/hdfs-block/${blockId}`);
+        const data = await res.json();
+
+        document.getElementById("modal-block-id").textContent = data.block_id;
+        document.getElementById("modal-block-size").textContent = `${data.size_mb} MB (${formatNumber(data.size_bytes)} bytes)`;
+        document.getElementById("modal-block-offset").textContent = `Byte ${formatNumber(data.offset_start)} to ${formatNumber(data.offset_end)}`;
+        document.getElementById("modal-block-records").textContent = `${formatNumber(data.records_count)} TSV rows`;
+        document.getElementById("modal-block-checksum").textContent = `${data.crc32_checksum} (Healthy)`;
+        document.getElementById("modal-block-primary").textContent = data.primary_node;
+
+        const codeBox = document.getElementById("modal-block-records-code");
+        if (codeBox && data.sample_records) {
+            codeBox.textContent = data.sample_records.join("\n");
+        }
+
+        document.getElementById("block-modal").style.display = "flex";
+    } catch (e) {
+        console.error("Error inspecting block:", e);
+    }
+}
+
+function inspectNode(nodeName) {
+    const node = state.clusterNodes.find(n => n.name === nodeName);
+    if (!node) return;
+
+    document.getElementById("modal-node-name").textContent = `${node.name} (${node.role})`;
+    document.getElementById("modal-node-role").textContent = node.role;
+    document.getElementById("modal-node-status").textContent = node.status;
+    document.getElementById("modal-node-port").textContent = `:${node.port}`;
+    document.getElementById("modal-node-rpc").textContent = `:${node.rpc}`;
+    document.getElementById("modal-node-desc").textContent = node.desc;
+
+    const weblink = document.getElementById("modal-node-weblink");
+    if (weblink) {
+        weblink.href = `http://localhost:${node.port}/`;
+        weblink.textContent = `Open ${node.name} Web UI (:${node.port}) ➔`;
+    }
+
+    document.getElementById("node-modal").style.display = "flex";
 }
