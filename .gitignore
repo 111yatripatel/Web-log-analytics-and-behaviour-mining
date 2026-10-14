@@ -3,6 +3,9 @@
 __pycache__/
 *.pyc
 
+# Secrets / local config (never commit real Atlas credentials)
+.env
+
 # Downloaded Installers
 installers/
 

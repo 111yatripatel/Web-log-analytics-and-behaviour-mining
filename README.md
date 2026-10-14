@@ -101,10 +101,13 @@ distributed-web-log-analytics/
 │   └── run_navigation.sh        # Bash runner for Navigation Mining
 ├── mongodb/
 │   └── loader.py                # Ingests MapReduce & Hive results into MongoDB
+├── .env.example                 # MongoDB Atlas connection template
 ├── backend/
 │   ├── Dockerfile
 │   ├── requirements.txt
-│   ├── main.py                  # FastAPI REST API
+│   ├── main.py                  # FastAPI REST API (routes + MongoDB access)
+│   ├── demo_data.py             # Precomputed cluster/benchmark/demo view data
+│   ├── trace.py                 # Single-record pipeline trace simulation
 │   └── static/
 │       ├── index.html           # Interactive dashboard
 │       ├── app.js               # Dynamic API fetch & chart rendering
@@ -124,6 +127,24 @@ distributed-web-log-analytics/
 ---
 
 ## 5. Quickstart Guide
+
+### 0. Configure MongoDB Atlas
+The serving layer now uses **MongoDB Atlas** (managed cloud) instead of a local container.
+
+1. Create a free cluster at [mongodb.com/atlas](https://www.mongodb.com/atlas).
+2. In Atlas: `Database > Connect > Drivers > Python` and copy the SRV connection string.
+3. Copy `.env.example` to `.env` in the project root and fill in your credentials:
+
+```powershell
+copy .env.example .env
+```
+
+```dotenv
+MONGODB_URI=mongodb+srv://<user>:<pass>@<cluster>.mongodb.net/?retryWrites=true&w=majority
+DATABASE_NAME=web_log_analytics
+```
+
+Both the backend and the loader read these values automatically. The `.env` file is git-ignored, so credentials are never committed.
 
 ### 1. Launch the Cluster
 ```powershell
@@ -154,10 +175,12 @@ powershell -ExecutionPolicy Bypass -File pipeline/run_sessionization.ps1
 powershell -ExecutionPolicy Bypass -File pipeline/run_navigation.ps1
 ```
 
-### 6. Populate MongoDB Serving Layer
+### 6. Populate MongoDB Atlas Serving Layer
 ```powershell
+pip install pymongo python-dotenv dnspython
 python mongodb/loader.py
 ```
+The loader reads `MONGODB_URI` from `.env`, extracts MapReduce/Hive results from HDFS, and loads them into Atlas with the appropriate B-Tree indexes.
 
 ### 7. View the Dashboard
 Open your browser and navigate to:
